@@ -31,7 +31,7 @@ def show_metrics(target,results):
 
 def clean_data(file,target_col,to_drop):
     """
-    conduct intial cleaning and pre-processing
+    conduct initial cleaning and pre-processing
     Args:
         file: the path to the csv data file
         target: the column that contains the labels
@@ -41,7 +41,6 @@ def clean_data(file,target_col,to_drop):
         y: numpy array of shape (rows,) contains the labels
     """
     df=pd.read_csv(file)
-    print(df.columns)
     x = df.drop(to_drop, axis=1).values
     y = df[target_col].values
     scaler = MinMaxScaler()
@@ -72,9 +71,9 @@ def pro_data(data):
     that function is used to prepare data from numpy array to be handled as 3-channel tensor, it was made to pass the tublar data
     to pre-trained ResNet networks that only deal with images. 
     Args:
-        data: the data with that need to be transformed, numpy array of shape (no.of rows, no.of features)
+        data: the data that need to be transformed, numpy array of shape (no.of rows, no.of features)
     Return:
-        data: the data after transformtion, tensor of shape (no.of rows, ,3, 1,no.of features)
+        data: the data after transformation, tensor of shape (no.of rows, 3, 1,no.of features)
     """
     min_max_scaler = MinMaxScaler()
     data = min_max_scaler.fit_transform(data)
