@@ -49,3 +49,32 @@ We have experimented with multiple networks and models through our work on this 
 The main obstacle that we faced is the highly imbalanced nature of the publicly available datasets that we can use in our project, there are multiple ways to fight against the imbalanced dataset issues and the way that we chose was through choosing the right algorithms.
 
 We chose mainly 3 metrics to evaluate the model: ROC_AUC, Accuracy and Recall, it's not common to use accuracy as a metric when it comes to dealing with imbalanced datasets but we found that some models can give very high Recall -almost 99%- and bad accuracy, those models are just extremely biased to the fraud class, it's like that the model learned that saying fraud is always the right answer instead of learning how to actually differentiate between the fraud and no-fraud!
+
+We experimented with three main methods:
+1- Few-Shot Learning.
+2- Feed Forward Network with different loss functions.
+3- Tree-based models.
+
+<h3>1- Few-Shot Learning:</h3>
+
+Few-Shot Learning is considered a kind of meta-learning, FSL was first introduced to solve problems in the domain of image classification, using only a few images from each class, it can construct a classifier that’s able to classify those classes from each other.<br>
+The paper that inspired us to follow this method - in other words the paper that started the curse - is Federated Meta-Learning for Fraudulent Credit Card Detection by Wenbo Zheng et al, that paper got the most impressive results that we have ever seen through our search, But it also 2 problems:
+The paper lacked a lot of details about the modelling and the hyper-parameters for their models were never mentioned and of course, they didn’t share their code, so we were never able to re-create their results even after spending months trying to.<br>
+The general structure of the model that this paper described was really computationally expensive, enough to say that they used ResNet 34 with a k-tuplet loss for 1000 epochs just to get the representation of the data! Given our computational power situation, trying to re-create their results on the gigantic datasets that we got was a suicidal mission.<br>
+We tried to communicate with the authors of this paper to get a lead on the hyper-parameters that they used in their model, or how they managed to code their loss function in an efficient way but we got no responses at all.
+The best that we managed to do using few-shot learning was with the PaySim dataset we later cancelled using it, but we see that the effort that we did building that model worth mentioning anyway.<br>
+
+The model architecture that we used to build the few-shot model for the PaySim dataset was constant of mainly 2 components: Prototypical Networks and a pre-trained ResNet18, Prototypical Networks is an algorithm that was introduced by Snell et al. in 2017 in their paper that’s called “Prototypical Networks for Few-shot Learning”.<br>
+The training settings that we used to train our network is called episodic training, it simply depends on feeding the model a batch that got n numbers of samples of each class.<br>
+In our specific case, we got only 2 classes, and we chose to feed our model a support set that consisted of 20 samples of frauds and 20 samples of non-frauds, and another query set that consisted of 20 samples of frauds and 20 samples of non-frauds. 
+Both The query samples and support samples get passed through ResNet18.<br>
+The prototype of the fraud class is produced by taking the mean of the outputs that result from passing the fraud samples in the support set through ResNet18, Same thing is for the non-fraud prototype.<br>
+Right after that, we compute the Euclidean distance between the query samples and the support samples and based on the resulting score the model decides whether that query sample is fraud or not.<br>
+We used Cross Entropy as a loss function for this model and we use Adam as an optimizer with a learning rate of .01. 
+We run our model for only 100 epochs.<br>
+That model tends to actually be biased in favour of the fraud class!  we can see that clearly in the results below as we got  F1_score = 66%, ROC_AUC = %93.7, average_precision = %46.6, Precision = %53 and Recall = %87.7, and the figure below shows the confusion matrix of that model:<br>
+
+<img src="https://github.com/Aml-Hassan-Abd-El-hamid/Fraud_Detection_using_Federated_Learning_AND_bank_application/blob/main/LEARNING/readme%20images/Screenshot%20from%202023-07-29%2002-58-43.png" width="340" height="340" >
+
+<h3>2- Feed Forward Network with different loss functions.</h3>
+
