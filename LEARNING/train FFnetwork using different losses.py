@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 from model import *
 from loss import * 
-from utils import show_metrics,clean_data
+from utils import show_metrics,clean_data,train,train_roc,back_prob,test,load_data
 
 import rich.traceback as traceback
 from rich.console import Console
@@ -26,64 +26,6 @@ error_console = Console(stderr=True)
 traceback.install(show_locals=False)
 
 
-device="cpu"#parmeter_to_be_taken_in
-num_epochs=1#parmeter_to_be_taken_in
-
-def back_prob(loss, optimizer):
-    loss.retain_grad()
-    loss.backward()
-    optimizer.step()
-    optimizer.zero_grad()
-#training the network
-from tqdm import tqdm
-def train_roc( model, train_dl,optimizer,y_train,epochs=1,epoch_gamma=.2,device=device):
-    last_epoch_y_pred = torch.ones(y_train.size ).to(device)
-    last_epoch_y_t    = torch.from_numpy(y_train).to(device)
-    model.train()
-    for epoch in tqdm(range(epochs),desc="train", position=0, leave=True):
-        epoch_y_pred=[]
-        epoch_y_t=[]
-        for xb, yb in train_dl:
-            preds=model(xb)
-            loss = roc_star_loss(yb.unsqueeze(1),preds,epoch_gamma, last_epoch_y_t, last_epoch_y_pred)
-            back_prob(loss ,optimizer)
-            epoch_y_pred.extend(preds)
-            epoch_y_t.extend(yb)
-        last_epoch_y_pred = torch.tensor(epoch_y_pred).to(device)
-        last_epoch_y_t = torch.tensor(epoch_y_t).to(device)
-        epoch_gamma = epoch_update_gamma(last_epoch_y_t, last_epoch_y_pred, epoch,device=device)
-        
-def train(model, train_loader, loss_func, optimizer,num_epochs=1):
-    model.train()
-    for epoch in tqdm(range(num_epochs)):
-        for data, target in train_loader:
-            output=model.forward(data.to(device))
-            loss = loss_func(output.squeeze(),target.float())#.to(torch.int64))
-            back_prob(loss ,optimizer)
-
-def test(model, test_loader):
-    model.eval()
-    y_test_pred=[]
-    y_test_true=[]
-    with torch.no_grad():
-        for data, target in test_loader:
-            output = model(data)
-            if output.shape[-1]!=1:
-                _, output = output.max(1)
-
-            y_test_pred+=output.detach().numpy().tolist()
-            y_test_true+=target.numpy().tolist()
-            
-    y_test_pred=np.array(y_test_pred)
-    y_test_true=np.array(y_test_true)
-    if output.shape[-1]!=1:
-         show_metrics(y_test_true, y_test_pred)
-    else:
-        y_test_pred [y_test_pred>=0.5] =1.0
-        y_test_pred [y_test_pred<0.5] =0.0
-        y_test_pred=np.squeeze(y_test_pred)
-        show_metrics(y_test_true, y_test_pred)
-
 class Loss_Func(Enum):
     Roc_Star="Roc_Star"
     Focal_Loss="Focal_Loss"
@@ -100,30 +42,25 @@ def define_opt(optimizer_name,model,learning_rate,momentum):
     
     return optimizer
 
-def load_data(data_path,target,drop,batch_size):
-    x, y= clean_data(data_path,target,drop)
-    ds = TensorDataset(torch.from_numpy(x), torch.from_numpy (y))
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=True,drop_last=True)
-    return loader,x.shape[-1],y
-
-
 @app.command()
 def run(train_data_path:str = typer.Argument(...),
         train_target:str= typer.Option("Class",help="name of the column that contains the labels in the training dataset"),
+        device:str= typer.Option("cpu",help="name of the device that is available for training, can be cpu or cuda"),
+        num_epochs:int= typer.Option(1,help="number of training epochs"),
         train_drop:List[str]= typer.Option(['Class','Time','Unnamed: 0'],help="list of columns to be dropped from the training dataset"),
         test_data_path:str = typer.Argument(...),
         test_target:str= typer.Option("Class",help="name of the column that contains the labels in the test dataset"),
         test_drop:List[str]= typer.Option(['Class','Time','Unnamed: 0'],help="list of columns to be dropped from the test dataset"),
-        batch_size:int=typer.Option(32, help="the size of the batch for trainig and test data loader"),
+        batch_size:int=typer.Option(32, help="the size of the batch for training and test data loader"),
         learning_rate:float=typer.Option(.001, help="learning rate"),
-        optimizer_name:str= typer.Option("SGD",help="optimizer name to be used in the tranig, can be SGD or Adam"),
+        optimizer_name:str= typer.Option("SGD",help="optimizer name to be used in the training, can be SGD or Adam"),
         momentum:float=typer.Option(.9,help="only used if the selected optimizer is SGD"),
-        loss_func_name:Loss_Func=typer.Option("Focal_Loss",help="the loss function that'll be used for trainig, can be one of 4: [\"Focal_Loss\",\"Roc_Star\",\"LDAMLoss\",\"BCE\"]"),
+        loss_func_name:Loss_Func=typer.Option("Focal_Loss",help="the loss function that'll be used for training, can be one of 4: [\"Focal_Loss\",\"Roc_Star\",\"LDAMLoss\",\"BCE\"]"),
         gamma:float=typer.Option(2,help="only used if the loss function is Focal Loss"),
         pos_weight:float=typer.Option(5,help="wight of the positive class, only used if the loss function is Binary Cross Entropy with Logits"),
         ):
     """
-    Testing Focal_Loss, Roc_Star, LDAMLoss , BCEWithLogits loss function on higly imblanced data
+    Testing Focal_Loss, Roc_Star, LDAMLoss, BCEWithLogits loss function on highly imbalanced data
     """
     
     train_dl,input_shape,y_train=load_data(train_data_path,train_target,train_drop,batch_size)
@@ -148,7 +85,7 @@ def run(train_data_path:str = typer.Argument(...),
                 print("hello")
                 loss_func = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]))
             else:
-                raise ValueError("The chosen loss fuction need to be one of the follwing: [\"Focal_Loss\",\"Roc_Star\",\"LDAMLoss\",\"BCE\"] ")
+                raise ValueError("The chosen loss function need to be one of the following: [\"Focal_Loss\",\"Roc_Star\",\"LDAMLoss\",\"BCE\"] ")
             train(model, train_dl, loss_func, optimizer)
 
     test(model, test_dl)
