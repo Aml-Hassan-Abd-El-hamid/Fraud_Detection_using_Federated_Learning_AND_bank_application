@@ -3,10 +3,6 @@ import numpy as np
 
 from tqdm import tqdm
 
-from torch.utils.data import TensorDataset
-from torch.utils.data import DataLoader
-
-from model import *
 from loss import * 
 from utils import show_metrics,clean_data,train,train_roc,back_prob,test,load_data
 
